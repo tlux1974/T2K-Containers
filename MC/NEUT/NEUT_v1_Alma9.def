@@ -1,0 +1,167 @@
+Bootstrap: docker
+From: almalinux:9
+
+%files
+# Copies files from your host to the container; adjust paths as necessary
+./DownloadSoftware/*.* /opt
+
+%environment 
+# Environment variables to be set when the container is run
+export OPT_DIR=/opt
+export ROOTSYS=$OPT_DIR/root
+export PATH=$OPT_DIR/root/bin:$PATH
+export LD_LIBRARY_PATH=$OPT_DIR/root/lib:$LD_LIBRARY_PATH
+
+%post
+# Define and export variables for the build process
+export OPT_DIR=/opt
+export NEUT_INSTALL_DIR=$OPT_DIR/neut
+export CERNLIB_INSTALL_DIR=$OPT_DIR/cernlib
+export CERNLIB_LEVEL_DIR=$CERNLIB_INSTALL_DIR/2005
+export CERNLIB_SRC_DIR=$OPT_DIR/cernlib-src
+
+export CERN=$CERNLIB_INSTALL_DIR
+export CERN_LEVEL=2005
+export CERN_ROOT=$CERNLIB_LEVEL_DIR
+export PATH=$CERN_ROOT/bin:$PATH
+export LD_LIBRARY_PATH=$CERN_ROOT/lib:$LD_LIBRARY_PATH
+export NEUT_ROOT=$OPT_DIR/neut/5.4.1-RelCand
+
+
+
+# Ensure all paths are correctly exported for subsequent commands
+mkdir -p $OPT_DIR
+mkdir -p $CERNLIB_SRC_DIR
+mkdir -p $CERNLIB_INSTALL_DIR
+mkdir -p $CERNLIB_LEVEL_DIR
+
+
+# Install epel-release separately to ensure EPEL repository is enabled
+dnf install -y epel-release
+# Alma 9 has many packages not in the standard and this repo with so called powertools needs to be activated
+dnf config-manager --set-enabled crb 
+
+# Update package repositories after adding EPEL
+dnf makecache
+
+# Install Development Tools and necessary packages
+dnf groupinstall -y "Development Tools"
+dnf install -y \
+    gcc-gfortran \
+    ed \
+    libtirpc* \
+    flexiblas* \
+    qt5-qtbase-devel \
+    xorg-x11-fonts-Type1 \
+    xorg-x11-fonts-misc \
+    less \
+    cmake \
+    libX11-devel \
+    libXpm-devel \
+    libXft-devel \
+    libXext-devel \
+    libpng-devel \
+    libjpeg-turbo-devel \
+    libtiff-devel \
+    libxml2-devel \
+    freetype-devel \
+    openssl-devel \
+    wget \
+    avahi-compat-libdns_sd-devel \
+    zlib-devel \
+    mesa-libGL-devel \
+    mesa-libGLU-devel \
+    freeglut-devel \
+    libXmu-devel \
+    libXi-devel \
+    which \
+    mlocate \
+    csh \
+    xrootd-devel \
+    motif-devel \
+    gcc-c++ \
+    python3 \
+    ncurses-devel \
+    xrootd-devel \
+    git \
+    imake \
+    graphviz* \
+    libuuid-devel \
+    davix-devel \
+    mariadb* \
+    openldap-devel \
+    python3-numpy \
+    gsl-devel \
+    gsl \
+    gawk \
+    fftw \
+    xrootd-client-devel \
+    libnsl2 \
+    libnsl2-devel \
+    fftw-devel
+
+#############################################################################
+# Clone and build CERNLIB
+#############################################################################
+cd $CERNLIB_SRC_DIR
+git clone https://github.com/luketpickering/cernlibgcc5-.git
+cd cernlibgcc5-
+./build_cernlib.sh
+cp -r cernlib_build/2005/bin cernlib_build/2005/lib cernlib_build/2005/include $CERNLIB_LEVEL_DIR
+
+#############################################################################
+# Install ROOT 6
+#############################################################################
+git clone --branch latest-stable --depth=1 https://github.com/root-project/root.git $OPT_DIR/root_src
+mkdir $OPT_DIR/root_build && cd $OPT_DIR/root_build
+cmake -DCMAKE_INSTALL_PREFIX=$OPT_DIR/root -Dmathmore=ON ../root_src
+cmake --build . -- -j4
+make install
+
+chmod 755 $OPT_DIR/root/bin/thisroot.sh
+source $OPT_DIR/root/bin/thisroot.sh
+
+
+#############################################################################
+# Setup NEUT
+#############################################################################
+
+cd $OPT_DIR
+mkdir -p $NEUT_INSTALL_DIR
+mv neut_5.4.1_RelCand.zip $NEUT_INSTALL_DIR/
+cd $NEUT_INSTALL_DIR
+unzip neut_5.4.1_RelCand.zip
+mv neut-develop 5.4.1-RelCand
+cd $NEUT_ROOT/src/neutsmpl
+# Alma 9 comes with a stricter version of gfortran than Centos7 and the following lines correct this
+awk '
+    $1 == "FCOPTIONS" && $NF ~ /\\$/ { capturing = 1 }
+    capturing && !/\\$/ { 
+        print $0; 
+        print "FCOPTIONS += -fallow-invalid-boz -fdec -fallow-argument-mismatch"; 
+        capturing = 0; 
+        next; 
+    }
+     /FCOPTFLAGS=/ { 
+        print; 
+        print "FCOPTFLAGS+=-Wl,-z,muldefs"; 
+        print "FLAGS += -Wl,-z,muldefs";  # Adding this line right after FCOPTFLAGS modification
+        next; 
+    }
+     /EXEFLAGS =/ { print; print "EXEFLAGS += -Wl,-z,muldefs"; next; }
+    { print }
+' config_gfortran_nopie.gmk > config_gfortran_nopie.gmk.new && mv config_gfortran_nopie.gmk.new config_gfortran_nopie.gmk
+
+./Makeneutsmpl
+mv $OPT_DIR/neut_test.card .
+cd ../reweight/
+make all
+
+
+%startscript 
+# Commands to run each time the container is started with "singularity run"
+source $OPT_DIR/root/bin/thisroot.sh
+
+%runscript 
+# Commands to execute when the container is run directly
+exec "$@"
