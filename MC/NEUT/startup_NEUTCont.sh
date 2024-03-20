@@ -1,0 +1,17 @@
+export OPT_DIR=/opt
+export NEUT_INSTALL_DIR=$OPT_DIR/neut
+export CERNLIB_INSTALL_DIR=$OPT_DIR/cernlib
+export CERNLIB_LEVEL_DIR=$CERNLIB_INSTALL_DIR/2005
+export CERNLIB_SRC_DIR=$OPT_DIR/cernlib-src
+
+export CERN=$CERNLIB_INSTALL_DIR
+export CERN_LEVEL=2005
+export CERN_ROOT=$CERNLIB_LEVEL_DIR
+export PATH=$CERN_ROOT/bin:$PATH
+export LD_LIBRARY_PATH=$CERN_ROOT/lib:$LD_LIBRARY_PATH
+export NEUT_ROOT=$OPT_DIR/neut/5.4.1-RelCand
+
+
+alias ll="ls -latrh"
+
+cd $NEUT_ROOT/src/neutsmpl/
