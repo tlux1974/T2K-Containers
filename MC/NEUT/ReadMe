@@ -1,1 +1,15 @@
+1) Create a directory and copy the def file and the startup script into it.
+2) Create a subdirectory: DownloadedSoftware
+3) Download for the first test the NEUT code from: https://t2k.org/asg/xsec/niwgdocs/neut/NEUT5.4.1_ReleaseCandidate to the subdirectory
+4) Also move the neut_test.card to this directory
+5) Create a sif container with: sudo singularity build [name].sif [name].def
+6) In the case of Alma9 it might take quite a while since root needs to be compiled from source
+7) Convert the sif file to a sandbox container: singularity build -s [name] [name].sif
+8) Starting with root rights to add more software: singularity shell --fakeroot --writable [name]
+9) To set the variables and end up in the neut exe directory: . startup_NEUTCont.sh
+10) for a quick test: ./neutroot2 neut_test.card
+
+Comments:
+1) For quick tests, the centos7 version might be better since faster to create
+2) neutgeom cannot be compiled on Alma9 until manually the Makefile is modified in this directory adding "-Wl,-z,muldefs" just before "-o" at the bottom of the file
 
