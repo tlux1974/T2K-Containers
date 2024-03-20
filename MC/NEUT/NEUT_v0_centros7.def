@@ -1,0 +1,163 @@
+Bootstrap: docker
+From: centos:7
+
+%files 
+# The files section allows to copy files from the host system to the container.  
+# This could be useful to copy personal versions of WCSim and FitQun after some 
+# modifications of the code to the container to produce MC data on a computer 
+# cluster. 
+# The format of the command is: 
+#     /file1    => copies file1 from the root of the host system to the root of the container 
+#     /file1 /opt  => copies file1 from the root of the host to /opt in the container 
+
+./DownloadSoftware/*.* /opt
+
+%environment 
+# The variables defined in this section will be available as system environment variables 
+# inside the container after the container has been started 
+# These variables are not known during the creation of the container! 
+# For the latter, the variables need to be defined in the %post section. 
+
+
+%post 
+# In the post section, the commands which will be executed after the installation of the base OS in the container 
+# are added.  
+
+################################################### 
+# Set variables needed during installation 
+################################################### 
+export OPT_DIR=/opt 
+export NEUT_INSTALL_DIR=$OPT_DIR/neut 
+export CERNLIB_INSTALL_DIR=$OPT_DIR/cernlib
+export CERNLIB_LEVEL_DIR=$CERNLIB_INSTALL_DIR/2005
+export CERNLIB_SRC_DIR=$OPT_DIR/cernlib-src
+
+##################################################
+# Install needed packages
+##################################################
+yum update -y && \
+    yum groupinstall -y 'Development Tools' && \
+    yum install -y \
+    gcc-gfortran \
+    epel-release \
+    ed \
+    curl \
+    qt4 qt4-devel \
+    xorg-x11-fonts-Type1 \
+    xorg-x11-fonts-75dpi \
+    xorg-x11-fonts-100dpi \
+    less \
+    cmake \
+    libX11-devel \
+    libXpm-devel \
+    libXft-devel \
+    libXext-devel \
+    libpng-devel \
+    libjpeg-turbo-devel \
+    giflib-devel \
+    libtiff-devel \
+    libxml2-devel \
+    freetype-devel \
+    openssl-devel \
+    wget \
+    zlib-devel \
+    mesa-libGL-devel \
+    mesa-libGLU-devel \
+    freeglut-devel \
+    xorg-x11-server-devel \
+    libXmu-devel \
+    libXi-devel \
+    which \
+    imake \
+    mlocate \
+    csh \
+    openmotif-devel \
+    cmake3 \
+    gcc-c++ \
+    gcc \
+    binutils \
+    python3 \
+    ncurses \
+    ncurses-devel \
+    git 
+
+
+yum update -y && \
+    yum groupinstall -y 'Development Tools' && \
+    yum install -y \
+    libzstd \
+    libzstd-devel
+
+
+
+mkdir -p $OPT_DIR
+mkdir -p $CERNLIB_SRC_DIR
+mkdir -p $CERNLIB_INSTALL_DIR
+mkdir -p $CERNLIB_LEVEL_DIR
+
+cd $CERNLIB_SRC_DIR
+git clone https://github.com/luketpickering/cernlibgcc5-.git
+
+cd cernlibgcc5-
+./build_cernlib.sh 
+
+cp -r $CERNLIB_SRC_DIR/cernlibgcc5-/cernlib_build/2005/bin \
+        $CERNLIB_SRC_DIR/cernlibgcc5-/cernlib_build/2005/lib \
+        $CERNLIB_SRC_DIR/cernlibgcc5-/cernlib_build/2005/include \
+     /$CERNLIB_LEVEL_DIR
+
+
+
+cd $OPT_DIR
+wget https://root.cern/download/root_v6.24.06.Linux-centos7-x86_64-gcc4.8.tar.gz
+
+tar xvfz root_v6.24.06.Linux-centos7-x86_64-gcc4.8.tar.gz
+
+chmod 755 $OPT_DIR/root/bin/thisroot.sh
+source $OPT_DIR/root/bin/thisroot.sh
+
+
+cd $OPT_DIR
+mkdir -p neut
+
+
+mv neut_5.4.1_RelCand.zip neut/.
+cd neut
+unzip neut_5.4.1_RelCand.zip
+mv neut-develop/ 5.4.1-RelCand
+
+export CERN=$CERNLIB_INSTALL_DIR
+export CERN_LEVEL=2005
+export CERN_ROOT=$CERNLIB_LEVEL_DIR
+export PATH=$CERN_ROOT/bin:$PATH
+export LD_LIBRARY_PATH=$CERN_ROOT/lib:$LD_LIBRARY_PATH
+export NEUT_ROOT=$OPT_DIR/neut/5.4.1-RelCand
+
+cd $NEUT_ROOT/src/neutsmpl
+./Makeneutsmpl
+
+mv $OPT_DIR/neut_test.card .
+
+
+cd ../reweight/
+make all
+
+
+
+
+%startscript 
+# In this section, scripts and commands can be added which will be executed when the container 
+# has been started. Thus, what is classically executed in the .bashrc file 
+# However, this section is only executed the container is started with "singularity run" and not with "singularity shell" 
+# This might be useful for production containers
+
+
+%runscript 
+# In this section, scripts and commands can be added which will be executed when the container is run 
+# However, this section is only executed the container is started with "singularity run" and not with "singularity shell" 
+# This might be useful for production containers
+
+
+%labels 
+Maintainer="Thorsten Lux <Thorsten.Lux@ifae.es>" 
+Version="1.0"
